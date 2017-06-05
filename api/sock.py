@@ -5,7 +5,7 @@ from .packets import *
 from .auth import authorize
 from .encrypt import MT5AES
 
-MT5_CONN_TIMEOUT = 111
+MT5_CONN_TIMEOUT = 30
 MT5_RECV_BUFFER = 2048
 
 class Connection(object):
@@ -41,13 +41,13 @@ class Connection(object):
             self.send(MT5Packet(cmd="QUIT"))
         except:
             # ignore socket problems
-            pass
+            log.warning("Socket is already closed") 
         finally:
             self.socket.close()
 
     def keep_alive(self):
         while not self.is_closed:
-            self.send(MT5Packet(cmd="PING"), self.crypter)
+            self.send(MT5Packet(cmd="PING"))
             sleep(MT5_CONN_TIMEOUT)
     
     def read(self):

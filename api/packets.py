@@ -35,13 +35,17 @@ class MT5Packet(object):
         return cmd
 
     def compose(self, crypter=None):
+        log.debug("composing pkg body")
         if self.pkg_body:
             return self.pkg_body
-        pkg_body = self._format_pkg_body()
-        assert len(pkg_body) < MAX_LENGTH
-        pkg_body = pkg_body.encode('utf-16le')
-        if crypter:
-            pkg_body = crypter.encrypt(pkg_body)
+        if self.cmd != 'PING':
+            pkg_body = self._format_pkg_body()
+            assert len(pkg_body) < MAX_LENGTH
+            pkg_body = pkg_body.encode('utf-16le')
+            if crypter:
+                pkg_body = crypter.encrypt(pkg_body)
+        else:
+            pkg_body = ''
         log.debug("pkg_body={}".format(pkg_body))
 
         h1 = '{:04x}'.format(len(pkg_body))
@@ -74,14 +78,17 @@ class MT5Packet(object):
                     .format(packet_num, packet_flag, body_len))
             i += 9
             body = data[i:i+body_len]
-            if crypter:
+            if crypter and body:
                 body = crypter.decrypt(body)
             assert packet_flag == 0 # Not ready yet for multipackets
 
             if not body: 
+                # Assume only PINGs have no body
+                log.debug("ping received")
                 result.append( 
                         MT5Packet('PING', {}, {}, packet_num, packet_flag) )
             else:
+                log.debug("cmd received")   
                 body = body.decode('utf-16le').encode('utf-8')
                 fields = body.split('|')
                 cmd = fields[0]
@@ -94,6 +101,13 @@ class MT5Packet(object):
             i += body_len
 
         return result
+
+    def __str__(self):
+        return "{}: {}".format(self.cmd, self.params)
+
+    def __repr__(self):
+        return "MT5Packet(cmd={p.cmd}, params={p.params},
+                body={p.body})".format(p=self)
 
 def escape(s):
     # regexp magic with many slashes

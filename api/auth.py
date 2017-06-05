@@ -17,7 +17,7 @@ def authorize(conn, login, password, encrypted):
     agent = 'UpTrader'
     version = 1571
     if encrypted:
-        crypt_method = 'AES2560FB'
+        crypt_method = 'AES256OFB'
     else:
         crypt_method = 'NONE'
 
@@ -50,6 +50,7 @@ def authorize(conn, login, password, encrypted):
     packets = conn.recv()
     p = MT5Packet.get_nonping(packets)
     log.debug("AUTH_ANSWER3: {}".format(p.pkg_body))
+    log.info("Authorized succesfully!")
     return p
 
 def make_auth_answer_hash(password, srv_rand):
