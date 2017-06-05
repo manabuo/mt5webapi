@@ -6,8 +6,15 @@ from logging import getLogger
 log = getLogger(__name__)
 
 class MT5AES(object):
+    """
+    MT5 WebApi crypto implementation.
+    Based on AES256 in OFB mode.
+    """
 
     def __init__(self, password, crypt_rand):
+        """
+        Constructor.
+        """
         self.password = password
         if isinstance(crypt_rand, str):
             # Split to 16-byte pieces
@@ -46,3 +53,4 @@ class MT5AES(object):
         initial_len = len(data)
         padded = appendPadding(data)
         return self.decrypter.encrypt(padded)[:initial_len]
+

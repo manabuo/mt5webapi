@@ -5,7 +5,7 @@ from .packets import *
 from .auth import authorize
 from .encrypt import MT5AES
 
-MT5_CONN_TIMEOUT = 30
+MT5_CONN_TIMEOUT = 111
 MT5_RECV_BUFFER = 2048
 
 class Connection(object):
@@ -23,11 +23,11 @@ class Connection(object):
         self.is_encrypted = encrypted
 
         # Authenticate
-        self.write_plain(hello_packet())
-        cmd, params, body = authorize(self, login, password, encrypted)
+        self.write(hello_packet())
+        p = authorize(self, login, password, encrypted)
 
         # Crypto
-        self.cypher = MT5AES(password, params['CRYPT_RAND'])
+        self.cypher = MT5AES(password, p.params['CRYPT_RAND'])
 
         # Keep connection
         self.keep_alive_thread = Thread(target=self.keep_alive, name="MT5ConnKeepAlive")
@@ -49,25 +49,27 @@ class Connection(object):
             self.write(ping_packet())
             sleep(MT5_CONN_TIMEOUT)
     
-    def read_plain(self):
+    def read(self):
+        """
+        Read raw bytes from socket.
+        Returns string.
+        """
+        log.debug("Raw recv: {}")
         return self.socket.recv(MT5_RECV_BUFFER)
 
-    def read(self):
-        data = self.read_plain()
-        log.debug("Raw recv: {}".format(data))
-        if self.is_encrypted:
-            return self.cypher.decrypt(data)
-        else:
-            return data
-
-    def write_plain(self, data):
+    def write(self, data):
+        """
+        Write raw bytes to socket.
+        Returns number of sent bytes.
+        """
+        log.debug("Raw send: {}".format(data))
         return self.socket.send(data)
 
-    def write(self, data):
-        if self.is_encrypted:
-            data = self.cypher.encrypt(data)
-        log.debug("Raw send: {}".format(data))
-        return self.write_plain(data)
+    def send(self, packet):
+        self.write(packet.compose())
+
+    def recv(self):
+        return Packet.parse(self.read())
 
     def __str__(self):
         return "MT5 Connection {user}@{server}:{port}".format(

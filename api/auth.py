@@ -11,45 +11,46 @@ def authorize(conn, login, password, encrypted):
     Authorize client with given credentials through mt5 server connection.
     """
     log.info("Starting MT5 WebAPI auth for {}@{}".format(login, conn.mt5server))
-    # Work only with unicode
+    # Work only with strings
     assert isinstance(login, str) and isinstance(password, str)
     type = 'MANAGER'
-    agent = 'Uptrader'
+    agent = 'UpTrader'
     version = 1571
     if encrypted:
         crypt_method = 'AES2560FB'
     else:
         crypt_method = 'NONE'
 
-    packet = create_cmd_packet(1, 'AUTH_START', dict(LOGIN=login, VERSION=version, AGENT=agent,
+    p = MT5Packet('AUTH_START', dict(LOGIN=login, VERSION=version, AGENT=agent,
         TYPE=type, CRYPT_METHOD=crypt_method))
-    log.debug("AUTH_START: {}".format(packet))
+    log.debug("AUTH_START: {}".format(p.pkg_body))
     # send packet next
-    conn.write_plain(packet)
-    
-    # recv packet
-    packet = conn.read_plain()
-    log.debug("AUTH_ANSWER: {}".format(packet))
-    cmd, params, body = parse_cmd_packet(packet)
-    # assert cmd=='AUTH_ANSWER' # maybe MT5Error
-    retcode = params['RETCODE']
+    conn.send(p)
+
+    # recv packets
+    packets = conn.recv()
+    p = get_nonping(packets)
+    log.debug("AUTH_ANSWER1: {}".format(p.pkg_body))
+    assert p.cmd=='AUTH_ANSWER' # maybe MT5Error
+    retcode = p.params['RETCODE']
     if not retcode.startswith('0'):
         log.error("MT5 return code NOT OK - {}".format(retcode))
         raise MT5Error(retcode)
-    srv_rand = params['SRV_RAND']
+    srv_rand = p.params['SRV_RAND']
     cli_rand = uuid1().get_hex()
     srv_rand_answer = make_auth_answer_hash(password, srv_rand)
-    
-    packet = create_cmd_packet(1, 'AUTH_ANSWER', dict(SRV_RAND_ANSWER=srv_rand_answer,
-        CLI_RAND=cli_rand))
-    log.debug("AUTH_ANSWER2: {}".format(packet))
+
+    p = MT5Packet('AUTH_ANSWER', dict(SRV_RAND_ANSWER=srv_rand_answer,
+        CLI_RAND=cli_rand)))
+    log.debug("AUTH_ANSWER2: {}".format(p.pkg_body))
     # send packet
-    conn.write_plain(packet)
-    
+    conn.send(p)
+
     # recv packet
-    packet = conn.read_plain()
-    log.debug("AUTH_ANSWER3: {}".format(packet))
-    return parse_cmd_packet(packet)
+    packets = conn.recv()
+    p = get_nonping(packets)
+    log.debug("AUTH_ANSWER3: {}".format(p.pkg_body))
+    return get_nonping(parse_packets(data))
 
 def make_auth_answer_hash(password, srv_rand):
     """
