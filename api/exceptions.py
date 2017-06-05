@@ -1,4 +1,4 @@
-from platforms.exceptions import PlatformError
+#from platforms.exceptions import PlatformError
 
-class MT5Error(PlatformError):
+class MT5Error(Exception):
 	pass

@@ -21,23 +21,24 @@ class Connection(object):
         self.socket = socket.create_connection((mt5server, mt5port), 10)
         self.is_closed = False
         self.is_encrypted = encrypted
+        self.is_authorized = False
 
         # Authenticate
-        self.write(hello_packet())
+        self.write("MT5WEBAPI")
         p = authorize(self, login, password, encrypted)
 
         # Crypto
-        self.cypher = MT5AES(password, p.params['CRYPT_RAND'])
+        self.crypter = MT5AES(password, p.params['CRYPT_RAND'])
+        self.is_authorized = True
 
         # Keep connection
         self.keep_alive_thread = Thread(target=self.keep_alive, name="MT5ConnKeepAlive")
         self.keep_alive_thread.start()
-        super(Connection, self).__init__()
 
     def close(self):
         self.is_closed = True
         try:
-            self.write(close_packet())
+            self.send(MT5Packet(cmd="QUIT"))
         except:
             # ignore socket problems
             pass
@@ -46,7 +47,7 @@ class Connection(object):
 
     def keep_alive(self):
         while not self.is_closed:
-            self.write(ping_packet())
+            self.send(MT5Packet(cmd="PING"), self.crypter)
             sleep(MT5_CONN_TIMEOUT)
     
     def read(self):
@@ -54,8 +55,9 @@ class Connection(object):
         Read raw bytes from socket.
         Returns string.
         """
-        log.debug("Raw recv: {}")
-        return self.socket.recv(MT5_RECV_BUFFER)
+        data = self.socket.recv(MT5_RECV_BUFFER)
+        log.debug("Raw recv: {}".format(data))
+        return data
 
     def write(self, data):
         """
@@ -66,10 +68,11 @@ class Connection(object):
         return self.socket.send(data)
 
     def send(self, packet):
-        self.write(packet.compose())
+        self.write(packet.compose(self.crypter if self.is_authorized else None))
 
     def recv(self):
-        return Packet.parse(self.read())
+        return MT5Packet.parse(self.read(), 
+                self.crypter if self.is_authorized else None)
 
     def __str__(self):
         return "MT5 Connection {user}@{server}:{port}".format(
